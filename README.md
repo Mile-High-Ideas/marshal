@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/hero.png" alt="marshal — bridging a Mac to race-car electronics" width="100%">
+</p>
+
 # marshal
 
 **Marshals device I/O across the Parallels boundary** — so Windows motorsport tuning
