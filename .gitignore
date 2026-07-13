@@ -1,0 +1,9 @@
+# discovery kit output + bundles
+tools/usb-discovery/out/
+*.tar.gz
+
+# large vendor installers (kept out of the repo)
+*.exe
+
+# macOS
+.DS_Store
