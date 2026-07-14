@@ -86,6 +86,58 @@ func TestDaemonRunsAndCleansUp(t *testing.T) {
 	}
 }
 
+func TestDaemonShutsDownWithActiveConnection(t *testing.T) {
+	runDir := shortRunDir(t)
+	cfg := &config.Config{Devices: []config.Device{
+		{Name: "loop", Type: "mock", Socket: "loop.sock"},
+	}}
+	d := New(cfg, testRegistry(), slog.New(slog.NewTextHandler(io.Discard, nil)), runDir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- d.Run(ctx) }()
+
+	sock := filepath.Join(runDir, "loop.sock")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(sock); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket never appeared")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte("hi")); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 2)
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		t.Fatalf("echo: %v", err)
+	}
+
+	// Cancel with the connection still OPEN — exercises join-before-close ordering.
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run returned %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return with an active connection")
+	}
+	if _, err := os.Stat(sock); !os.IsNotExist(err) {
+		t.Fatalf("socket not cleaned up: %v", err)
+	}
+}
+
 func TestDaemonUnknownTypeFails(t *testing.T) {
 	runDir := shortRunDir(t)
 	cfg := &config.Config{Devices: []config.Device{

@@ -37,7 +37,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	var opened []plugin.Plugin
 	var transports []*transport.Transport
-	teardown := func() {
+	closeAll := func() {
 		for _, t := range transports {
 			_ = t.Close()
 		}
@@ -49,27 +49,26 @@ func (d *Daemon) Run(ctx context.Context) error {
 	for _, dev := range d.cfg.Devices {
 		p, err := d.reg.Build(dev)
 		if err != nil {
-			teardown()
+			closeAll()
 			return fmt.Errorf("daemon: device %q: %w", dev.Name, err)
 		}
+		opened = append(opened, p) // track before Open so a failed Open is still closed
 		if err := p.Open(ctx); err != nil {
-			teardown()
+			closeAll()
 			return fmt.Errorf("daemon: open %q: %w", dev.Name, err)
 		}
-		opened = append(opened, p)
 
 		sock := filepath.Join(d.runDir, dev.Socket)
 		tr := transport.New(dev.Name, sock, p, d.log)
+		transports = append(transports, tr) // track before Start
 		if err := tr.Start(); err != nil {
-			teardown()
+			closeAll()
 			return fmt.Errorf("daemon: listen %q: %w", dev.Name, err)
 		}
-		transports = append(transports, tr)
 	}
 
 	var wg sync.WaitGroup
 	for _, tr := range transports {
-		tr := tr
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -82,7 +81,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	<-ctx.Done()
 	d.log.Info("shutting down")
-	teardown()
+	// Close listeners first so no new guests are accepted; ctx cancellation
+	// unwinds any in-flight Pump. Join all Serve goroutines BEFORE closing the
+	// devices, so no goroutine is still using a plugin when it is closed.
+	for _, tr := range transports {
+		_ = tr.Close()
+	}
 	wg.Wait()
+	for i := len(opened) - 1; i >= 0; i-- {
+		_ = opened[i].Close()
+	}
 	return nil
 }
