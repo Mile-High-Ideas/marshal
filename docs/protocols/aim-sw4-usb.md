@@ -141,7 +141,27 @@ tshark -r bus1.pcapng -Y "usb.endpoint_address==0x01 && usb.capdata" -T fields -
 tshark -r bus1.pcapng -Y "usb.endpoint_address==0x82 && usb.capdata" -T fields -e usb.capdata  # read
 ```
 
-## 8. Open items
+## 10. SW4 plugin — implementation checklist (Go)
+
+Everything below is buildable from this doc + the fixture, no hardware:
+
+1. Add a libusb binding dependency (`github.com/google/gousb`) to `go.mod`.
+2. Add `Presentation` value `USBTransferEndpoint` (`internal/plugin`).
+3. New package `internal/plugins/aim`:
+   - `Open`: find `0x11CC:0x0110`, detach the kernel HID driver if bound, claim the interface
+     (interface 0; endpoints `0x01` bulk-out, `0x82` bulk-in, plus EP0) — gousb reads the config
+     descriptor live, so confirm the layout at open rather than hard-coding.
+   - `Pump`: loop — decode a request frame (§7), issue the matching control/bulk transfer (§6),
+     write the response frame. Transport-transparent; never parse the payload.
+   - `Close`: release interface, close device.
+4. Register the type (e.g. `"aim-sw4"`) in `cmd/marshald/main.go`.
+5. Config: a device `type = "aim-sw4"` (VID/PID default to `0x11CC/0x0110`, overridable).
+6. Replay test: load `testdata/sw4_session.ndjson.gz`, drive `Pump` against a mock libusb device,
+   assert each recorded transfer is relayed faithfully (respect the read-tick idle contract).
+7. **Out of scope for the plugin:** the Windows-side forwarder that makes RS3 speak the §7 framing —
+   that's the separate guest-presentation design problem.
+
+## 11. Open items
 
 - Decode the 64-byte req-1 control blocks (needed only for emulation/replay, not for a pass-through bridge).
 - Confirm the header length field (decimal vs hex) and whether it counts the CRLF.
