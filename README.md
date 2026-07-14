@@ -98,6 +98,8 @@ tools/usb-discovery/       macOS hardware discovery kit (no build required)
 tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
 tools/ecumaster-check/     Windows kit — confirm the ECUMaster COM port in the guest
 tools/aim-usbcap/          Windows kit — record RS3<->SW4 USB traffic (USBPcap, x64 PC)
+tools/lifecal-capture/     Windows kit — Life Racing IPC + raw-frame capture (gets the Life Racing inputs)
+tools/aim-open-trace/      Windows kit — trace how RS3 opens the SW4 (gets the guest-forwarder input)
 ```
 
 The remaining device plugin (Life Racing raw-L2) lands under `internal/plugins/`.
