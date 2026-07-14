@@ -53,7 +53,7 @@ marshal moves the device I/O to where a driver can run:
 |---|---|---|---|
 | ECUMaster PMU16 | PMU Client | USB→CAN cable | ✅ Confirmed USB‑CDC (VID 0x0483/PID 0x5740) — free ARM64 COM port, no bridge |
 | Life Racing ECU | LifeCal | Raw layer‑2 Ethernet | 📐 Designed — reimplement their protocol server on macOS |
-| AiM SW4 | RaceStudio 3 | Native USB | 🔬 Protocol decoded — vendor control (0x42) + bulk 0x01/0x82, ASCII/XML config; not HID. libusb-ownable on macOS; guest-presentation is the open piece |
+| AiM SW4 | RaceStudio 3 | Native USB | 🔬 Protocol decoded (vendor control 0x42 + bulk 0x01/0x82, ASCII/XML; not HID). **Device-side relay built** & fixture-validated; guest-presentation forwarder is the open piece |
 
 Sequenced easiest → hardest so the shared plumbing is proven before the hard device.
 
@@ -65,7 +65,10 @@ Sequenced easiest → hardest so the shared plumbing is proven before the hard d
 - ✅ A hardware **discovery kit** you run on the Mac with the devices — [`tools/usb-discovery/`](tools/usb-discovery/)
 - ✅ **`marshald` core + serial bridge** — the daemon spine (config → plugin → bridge → per-device
   Unix socket → lifecycle), with `mock` and `serial` plugins. Loopback- and PTY-tested; `go test ./... -race` green.
-- ⏳ The **Life Racing (raw-L2)** and **AiM SW4 (libusb)** device plugins — not written yet.
+- ✅ **AiM SW4 device-side relay** — the `internal/plugins/aim` libusb control/bulk transfer relay,
+  validated **hardware-free** by replaying the captured USBPcap fixture (real-device build: `-tags aim_usb`).
+  The guest-presentation forwarder (how RS3-in-guest reaches the socket) is the remaining piece.
+- ⏳ The **Life Racing (raw-L2)** device plugin — not written yet.
 
 No promises that any given device works until its row above says so. This README describes the
 plan and the tools that get us there.
@@ -89,7 +92,7 @@ See [`tools/usb-discovery/README.md`](tools/usb-discovery/README.md) for the wal
 
 ```text
 cmd/marshald/             the daemon entrypoint (Go)
-internal/                 daemon packages: config, plugin, bridge, transport, daemon, plugins/{mock,serial}
+internal/                 daemon packages: config, plugin, bridge, transport, daemon, plugins/{mock,serial,aim}
 docs/superpowers/         design specs and implementation plans
 tools/usb-discovery/       macOS hardware discovery kit (no build required)
 tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
@@ -97,7 +100,7 @@ tools/ecumaster-check/     Windows kit — confirm the ECUMaster COM port in the
 tools/aim-usbcap/          Windows kit — record RS3<->SW4 USB traffic (USBPcap, x64 PC)
 ```
 
-The remaining device plugins (Life Racing raw-L2, AiM SW4 libusb) land under `internal/plugins/`.
+The remaining device plugin (Life Racing raw-L2) lands under `internal/plugins/`.
 
 ## Non‑goals
 

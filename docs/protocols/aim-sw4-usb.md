@@ -143,6 +143,11 @@ tshark -r bus1.pcapng -Y "usb.endpoint_address==0x82 && usb.capdata" -T fields -
 
 ## 10. SW4 plugin — implementation checklist (Go)
 
+> **Implemented (2026-07-14):** steps 1–6 are done — see `internal/plugins/aim/`
+> (the libusb device is behind a `//go:build aim_usb` tag; the replay test validates
+> the fixture with no hardware). Step 7 (the Windows-side forwarder) remains out of
+> scope for the plugin.
+
 Everything below is buildable from this doc + the fixture, no hardware:
 
 1. Add a libusb binding dependency (`github.com/google/gousb`) to `go.mod`.
