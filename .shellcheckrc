@@ -1,0 +1,10 @@
+# Shared ShellCheck config for marshal shell scripts (scan.sh + *.command launchers).
+# ShellCheck searches from each checked file up to the repo root, so this applies
+# to every script in the tree — manual runs, editors, and the pre-commit hook.
+#
+# NOTE: `severity` is a CLI-only flag and is ignored here; the commit-gate bar
+# (warnings + errors only) lives in .githooks/pre-commit as `--severity=warning`.
+
+# The colored-output palette (C_HEAD/C_OK/C_DIM/...) is defined as a complete set;
+# some entries are intentionally unused. Don't flag them as unused variables.
+disable=SC2034
