@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -15,6 +16,59 @@ import (
 	"github.com/Mile-High-Ideas/marshal/internal/config"
 	"github.com/Mile-High-Ideas/marshal/internal/plugin"
 )
+
+// encodeRequest and decodeResponse are the guest/forwarder side of the §7
+// framing — the counterpart of the plugin's decodeRequest/encodeResponse. They
+// live here (not in the shipped binary) until the Windows-side forwarder needs
+// them, at which point they'd move to an exported frame package.
+
+func encodeRequest(w io.Writer, req *Request) error {
+	hdr := [4]byte{req.Kind, req.Endpoint, 0, 0}
+	if _, err := w.Write(hdr[:]); err != nil {
+		return err
+	}
+	if req.Kind == kindControl {
+		var s [8]byte
+		s[0] = req.Setup.BmRequestType
+		s[1] = req.Setup.BRequest
+		binary.LittleEndian.PutUint16(s[2:4], req.Setup.WValue)
+		binary.LittleEndian.PutUint16(s[4:6], req.Setup.WIndex)
+		binary.LittleEndian.PutUint16(s[6:8], req.Setup.WLength)
+		if _, err := w.Write(s[:]); err != nil {
+			return err
+		}
+	}
+	var lenb [4]byte
+	binary.LittleEndian.PutUint32(lenb[:], uint32(len(req.Out)))
+	if _, err := w.Write(lenb[:]); err != nil {
+		return err
+	}
+	if len(req.Out) > 0 {
+		if _, err := w.Write(req.Out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func decodeResponse(r io.Reader) (*Response, error) {
+	var head [8]byte
+	if _, err := io.ReadFull(r, head[:]); err != nil {
+		return nil, err
+	}
+	resp := &Response{Status: int32(binary.LittleEndian.Uint32(head[0:4]))}
+	inLen := binary.LittleEndian.Uint32(head[4:8])
+	if inLen > maxTransfer {
+		return nil, io.ErrUnexpectedEOF
+	}
+	if inLen > 0 {
+		resp.In = make([]byte, inLen)
+		if _, err := io.ReadFull(r, resp.In); err != nil {
+			return nil, err
+		}
+	}
+	return resp, nil
+}
 
 // --- frame round-trip -------------------------------------------------------
 
@@ -161,13 +215,16 @@ type mockUSB struct {
 	closed  bool
 }
 
-func (m *mockUSB) Control(setup Setup, out []byte) ([]byte, int32, error) {
+func (m *mockUSB) Control(_ context.Context, setup Setup, out []byte) ([]byte, int32, error) {
 	m.ctrl = append(m.ctrl, setup)
-	// The fixture has no control data stage, so IN returns nothing.
+	// NOTE: the fixture omits the control data stage (tshark doesn't surface
+	// control-transfer payloads), so IN returns nothing and gousbDevice.Control's
+	// IN data path is unexercised. When a fixture with control data is captured,
+	// return it here and assert the plugin relays it verbatim.
 	return nil, 0, nil
 }
 
-func (m *mockUSB) Bulk(ep uint8, out []byte) ([]byte, int32, error) {
+func (m *mockUSB) Bulk(_ context.Context, ep uint8, out []byte) ([]byte, int32, error) {
 	if ep&0x80 != 0 { // IN
 		var in []byte
 		if len(m.bulkIn) > 0 {

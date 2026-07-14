@@ -6,6 +6,7 @@
 package aim
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/gousb"
@@ -83,7 +84,10 @@ type gousbDevice struct {
 	epOut *gousb.OutEndpoint
 }
 
-func (g *gousbDevice) Control(setup Setup, out []byte) ([]byte, int32, error) {
+// Control issues a vendor control transfer. gousb's control transfer is not
+// context-cancellable; control transfers here are short (64-byte blocks and
+// zero-length triggers) so this is not a shutdown-hang risk like bulk-IN is.
+func (g *gousbDevice) Control(_ context.Context, setup Setup, out []byte) ([]byte, int32, error) {
 	if setup.isIN() {
 		buf := make([]byte, setup.WLength)
 		n, err := g.dev.Control(setup.BmRequestType, setup.BRequest, setup.WValue, setup.WIndex, buf)
@@ -98,16 +102,19 @@ func (g *gousbDevice) Control(setup Setup, out []byte) ([]byte, int32, error) {
 	return nil, 0, nil
 }
 
-func (g *gousbDevice) Bulk(ep uint8, out []byte) ([]byte, int32, error) {
+// Bulk issues a bulk transfer. It uses the context-aware gousb calls so a
+// cancelled ctx (daemon shutdown) aborts an in-flight transfer — critical for
+// bulk-IN, which blocks until the idle wheel produces data.
+func (g *gousbDevice) Bulk(ctx context.Context, ep uint8, out []byte) ([]byte, int32, error) {
 	if ep&0x80 != 0 {
 		buf := make([]byte, bulkReadMax)
-		n, err := g.epIn.Read(buf)
+		n, err := g.epIn.ReadContext(ctx, buf)
 		if err != nil {
 			return nil, -1, err
 		}
 		return buf[:n], 0, nil
 	}
-	if _, err := g.epOut.Write(out); err != nil {
+	if _, err := g.epOut.WriteContext(ctx, out); err != nil {
 		return nil, -1, err
 	}
 	return nil, 0, nil

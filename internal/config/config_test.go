@@ -87,6 +87,14 @@ socket = "sub/a.sock"`,
 name = "a"
 type = "mock"
 socket = "../a.sock"`,
+		"usb vid out of range": `
+[[device]]
+name = "a"
+type = "aim-sw4"
+socket = "a.sock"
+  [device.usb]
+  vid = 0x1FFFF
+  pid = 0x0110`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -74,6 +74,8 @@ func (p *aimPlugin) Pump(ctx context.Context, guest io.ReadWriteCloser) error {
 		case <-stop:
 		}
 	}()
+	// Close guest on return too; on ctx cancel the watcher above may have
+	// already closed it — a redundant Close on a net.Conn is a harmless no-op.
 	defer guest.Close()
 
 	for {
@@ -84,7 +86,7 @@ func (p *aimPlugin) Pump(ctx context.Context, guest io.ReadWriteCloser) error {
 			}
 			return err
 		}
-		resp := p.issue(req)
+		resp := p.issue(ctx, req)
 		if err := encodeResponse(guest, resp); err != nil {
 			if cleanEnd(err, ctx) {
 				return nil
@@ -98,7 +100,7 @@ func (p *aimPlugin) Pump(ctx context.Context, guest io.ReadWriteCloser) error {
 // to the guest as a non-zero status rather than tearing down the relay, matching
 // the transport-transparent contract (the guest decides what a failed transfer
 // means).
-func (p *aimPlugin) issue(req *Request) *Response {
+func (p *aimPlugin) issue(ctx context.Context, req *Request) *Response {
 	var (
 		in     []byte
 		status int32
@@ -106,9 +108,9 @@ func (p *aimPlugin) issue(req *Request) *Response {
 	)
 	switch req.Kind {
 	case kindControl:
-		in, status, err = p.dev.Control(req.Setup, req.Out)
+		in, status, err = p.dev.Control(ctx, req.Setup, req.Out)
 	case kindBulk:
-		in, status, err = p.dev.Bulk(req.Endpoint, req.Out)
+		in, status, err = p.dev.Bulk(ctx, req.Endpoint, req.Out)
 	}
 	if err != nil && status == 0 {
 		status = -1

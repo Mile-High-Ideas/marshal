@@ -89,36 +89,6 @@ func decodeRequest(r io.Reader) (*Request, error) {
 	return req, nil
 }
 
-// encodeRequest writes a single request frame (the guest/forwarder side).
-func encodeRequest(w io.Writer, req *Request) error {
-	hdr := [4]byte{req.Kind, req.Endpoint, 0, 0}
-	if _, err := w.Write(hdr[:]); err != nil {
-		return err
-	}
-	if req.Kind == kindControl {
-		var s [8]byte
-		s[0] = req.Setup.BmRequestType
-		s[1] = req.Setup.BRequest
-		binary.LittleEndian.PutUint16(s[2:4], req.Setup.WValue)
-		binary.LittleEndian.PutUint16(s[4:6], req.Setup.WIndex)
-		binary.LittleEndian.PutUint16(s[6:8], req.Setup.WLength)
-		if _, err := w.Write(s[:]); err != nil {
-			return err
-		}
-	}
-	var lenb [4]byte
-	binary.LittleEndian.PutUint32(lenb[:], uint32(len(req.Out)))
-	if _, err := w.Write(lenb[:]); err != nil {
-		return err
-	}
-	if len(req.Out) > 0 {
-		if _, err := w.Write(req.Out); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // encodeResponse writes a single response frame (the host/plugin side).
 func encodeResponse(w io.Writer, resp *Response) error {
 	var head [8]byte
@@ -133,24 +103,4 @@ func encodeResponse(w io.Writer, resp *Response) error {
 		}
 	}
 	return nil
-}
-
-// decodeResponse reads a single response frame (the guest/forwarder side).
-func decodeResponse(r io.Reader) (*Response, error) {
-	var head [8]byte
-	if _, err := io.ReadFull(r, head[:]); err != nil {
-		return nil, err
-	}
-	resp := &Response{Status: int32(binary.LittleEndian.Uint32(head[0:4]))}
-	inLen := binary.LittleEndian.Uint32(head[4:8])
-	if inLen > maxTransfer {
-		return nil, fmt.Errorf("aim: in length %d exceeds max %d", inLen, maxTransfer)
-	}
-	if inLen > 0 {
-		resp.In = make([]byte, inLen)
-		if _, err := io.ReadFull(r, resp.In); err != nil {
-			return nil, err
-		}
-	}
-	return resp, nil
 }

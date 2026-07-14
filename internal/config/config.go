@@ -80,6 +80,14 @@ func (c *Config) Validate() error {
 		if d.Type == "serial" && (d.Serial == nil || d.Serial.Port == "") {
 			return fmt.Errorf("config: device %q: serial requires a port", d.Name)
 		}
+		if d.USB != nil {
+			if d.USB.VID < 0 || d.USB.VID > 0xFFFF {
+				return fmt.Errorf("config: device %q: usb vid %#x out of range (0-0xffff)", d.Name, d.USB.VID)
+			}
+			if d.USB.PID < 0 || d.USB.PID > 0xFFFF {
+				return fmt.Errorf("config: device %q: usb pid %#x out of range (0-0xffff)", d.Name, d.USB.PID)
+			}
+		}
 	}
 	return nil
 }
