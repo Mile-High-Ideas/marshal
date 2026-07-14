@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Mile-High-Ideas/marshal/internal/plugin"
@@ -43,13 +44,19 @@ func (t *Transport) Start() error {
 
 // Serve accepts guest connections until ctx is cancelled or the listener is
 // closed. Exactly one guest is bridged at a time; a second concurrent
-// connection is refused (closed). Cancelling ctx stops Serve and returns nil.
+// connection is refused (closed). Cancelling ctx stops Serve, which waits for
+// any in-flight guest handler to finish before returning — so a caller that
+// joins Serve knows no handler is still using the plugin.
 func (t *Transport) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
+	var handlers sync.WaitGroup
+	// Registered before defer cancel() so it runs AFTER cancel() at return
+	// (defers are LIFO): cancel() unwinds the in-flight handler, then we wait
+	// for it to finish before Serve returns.
+	defer handlers.Wait()
 	defer cancel()
 	// Closing the listener is the only way to unblock Accept, so close it when
-	// ctx is cancelled — this lets a caller stop Serve with ctx alone. The
-	// derived ctx + defer cancel() guarantees this watcher exits when Serve does.
+	// ctx is cancelled — this lets a caller stop Serve with ctx alone.
 	go func() {
 		<-ctx.Done()
 		_ = t.ln.Close()
@@ -67,7 +74,11 @@ func (t *Transport) Serve(ctx context.Context) error {
 			_ = conn.Close()
 			continue
 		}
-		go t.handle(ctx, conn)
+		handlers.Add(1)
+		go func(c net.Conn) {
+			defer handlers.Done()
+			t.handle(ctx, c)
+		}(conn)
 	}
 }
 
