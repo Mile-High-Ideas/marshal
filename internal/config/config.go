@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
@@ -52,6 +53,12 @@ func (c *Config) Validate() error {
 		}
 		if d.Socket == "" {
 			return fmt.Errorf("config: device %q: empty socket", d.Name)
+		}
+		// The socket is joined onto the runtime dir, so it must be a bare
+		// filename — a path separator or "..", ".", or an absolute path could
+		// place the socket outside the runtime dir.
+		if d.Socket == "." || d.Socket == ".." || filepath.Base(d.Socket) != d.Socket {
+			return fmt.Errorf("config: device %q: socket must be a bare filename, not a path (%q)", d.Name, d.Socket)
 		}
 		if names[d.Name] {
 			return fmt.Errorf("config: duplicate device name %q", d.Name)

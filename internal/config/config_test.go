@@ -77,6 +77,16 @@ socket = "x.sock"`,
 name = "a"
 type = "serial"
 socket = "a.sock"`,
+		"socket with path separator": `
+[[device]]
+name = "a"
+type = "mock"
+socket = "sub/a.sock"`,
+		"socket escaping runtime dir": `
+[[device]]
+name = "a"
+type = "mock"
+socket = "../a.sock"`,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
