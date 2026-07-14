@@ -90,6 +90,7 @@ docs/superpowers/specs/   design specs
 tools/usb-discovery/       macOS hardware discovery kit (no build required)
 tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
 tools/ecumaster-check/     Windows kit — confirm the ECUMaster COM port in the guest
+tools/aim-usbcap/          Windows kit — record RS3<->SW4 USB traffic (USBPcap, x64 PC)
 ```
 
 `marshald` and the device plugins will land here as implementation begins.
