@@ -97,7 +97,41 @@ sw_uid=1720540603|
   `COMByteStream` presentation. It needs a new USB-transfer presentation/transport (see design spec
   §4.3 "guest presentation").
 
-## 7. Ground truth & re-derivation
+## 7. Recommended guest-transport framing (for `Pump`)
+
+The SW4 plugin's `Pump(ctx, guest)` cannot be a byte pump — the guest side sends **USB transfers**,
+not a byte stream. Recommended minimal request/response framing over the guest Unix socket (the
+guest-side forwarder speaks the same). All integers little-endian:
+
+```bash
+Request  (guest -> host):
+  u8  kind          1 = CONTROL, 2 = BULK
+  u8  endpoint      0x00/0x80 (control dir in bit7), 0x01, 0x82
+  u16 _reserved
+  // CONTROL only (kind==1): the 8-byte SETUP
+  u8  bmRequestType ; u8 bRequest ; u16 wValue ; u16 wIndex ; u16 wLength
+  u32 outLen        length of OUT payload that follows (0 for IN transfers)
+  u8  out[outLen]
+
+Response (host -> guest):
+  i32 status        libusb transfer status (0 = LIBUSB_SUCCESS)
+  u32 inLen
+  u8  in[inLen]     IN payload (control-IN / bulk-IN); empty for OUT
+```
+
+The plugin decodes a request, issues the matching `libusb` call (§6), and writes the response. This
+is a thin, transport-transparent relay — it never parses the AiM payload. (USB/IP is the heavyweight
+standard alternative; this custom framing is smaller and sufficient for one device.) A new
+`Presentation` value — e.g. `USBTransferEndpoint` — should back it.
+
+## 8. Replay fixture (build/test without hardware)
+
+`internal/plugins/aim/testdata/sw4_session.ndjson.gz` — the real captured session as one JSON object
+per USB frame (2279 records). Schema and usage: that directory's `README.md`. Drive a replay test
+by feeding each record's transfer through the framing above against a mock `libusb` device and
+asserting the plugin relays it faithfully.
+
+## 9. Ground truth & re-derivation
 
 Capture: `scratchpad/.../bus1.pcapng` (= `\\.\USBPcap4`), device address 1. Re-derive with:
 
