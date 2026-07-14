@@ -13,6 +13,7 @@ import (
 	"github.com/Mile-High-Ideas/marshal/internal/config"
 	"github.com/Mile-High-Ideas/marshal/internal/daemon"
 	"github.com/Mile-High-Ideas/marshal/internal/plugin"
+	"github.com/Mile-High-Ideas/marshal/internal/plugins/aim"
 	"github.com/Mile-High-Ideas/marshal/internal/plugins/mock"
 	"github.com/Mile-High-Ideas/marshal/internal/plugins/serial"
 )
@@ -36,6 +37,7 @@ func main() {
 	reg := plugin.NewRegistry()
 	reg.Register("mock", mock.New)
 	reg.Register("serial", serial.New)
+	reg.Register("aim-sw4", aim.New)
 
 	home, err := os.UserHomeDir()
 	if err != nil {

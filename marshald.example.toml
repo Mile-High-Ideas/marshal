@@ -12,3 +12,14 @@ socket = "ecumaster.sock"
 name   = "loopback"
 type   = "mock"
 socket = "loopback.sock"
+
+# AiM SW4 steering wheel — USB control/bulk transfer relay.
+# Requires a binary built with -tags aim_usb (libusb + pkg-config). VID/PID
+# default to the SW4's 0x11cc/0x0110; the [device.usb] block is optional.
+[[device]]
+name   = "sw4"
+type   = "aim-sw4"
+socket = "sw4.sock"
+  [device.usb]
+  vid = 0x11cc
+  pid = 0x0110
