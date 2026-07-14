@@ -1,0 +1,14 @@
+# Example marshald config. Socket paths are relative to ~/.marshald/run/.
+
+[[device]]
+name   = "ecumaster"
+type   = "serial"
+socket = "ecumaster.sock"
+  [device.serial]
+  port = "/dev/cu.usbserial-XXXX"   # find with: ls /dev/cu.*
+  baud = 115200
+
+[[device]]
+name   = "loopback"
+type   = "mock"
+socket = "loopback.sock"
