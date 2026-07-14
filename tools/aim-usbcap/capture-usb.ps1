@@ -100,7 +100,9 @@ $n = 0
 foreach ($if in $ifaces) {
   $n++
   $f = Join-Path $out ("bus$n.pcapng")
-  $procs += Start-Process -FilePath $cmd -ArgumentList @('-d', $if, '-o', "`"$f`"") -PassThru -WindowStyle Hidden
+  # -A (capture from ALL devices on the bus) is REQUIRED: without it USBPcap
+  # exits with "Selected capture options result in empty capture".
+  $procs += Start-Process -FilePath $cmd -ArgumentList @('-d', $if, '-A', '-o', "`"$f`"") -PassThru -WindowStyle Hidden
 }
 Start-Sleep -Milliseconds 900
 if (-not ($procs | Where-Object { -not $_.HasExited })) {
