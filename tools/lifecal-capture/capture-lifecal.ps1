@@ -7,7 +7,8 @@
 #   1. HOW LifeCal reaches its "Ethernet Protocol Server" (Process Monitor +
 #      netstat) - the decisive unknown: a redirectable localhost socket, or
 #      in-process via the Rawether driver?
-#   2. The raw layer-2 frames (a built-in Windows packet trace, best effort).
+#   2. The raw layer-2 frames - with Wireshark's dumpcap if Wireshark is
+#      installed (reliable .pcapng), else a built-in netsh trace (best effort).
 # Then it drops a .zip on the Desktop to send to Brandon.
 #
 # NOTE: this file is intentionally plain ASCII. Windows PowerShell 5.1 misreads
@@ -80,23 +81,62 @@ try {
 try { cmd /c "driverquery /v" | Out-File -Encoding ascii (Join-Path $out "drivers.txt") } catch { }
 
 # ---------------------------------------------------------------------------
-# 3. Start Process Monitor + a built-in packet trace (best effort)
+# 3. Start Process Monitor, then the raw-frame capture (dumpcap preferred)
 # ---------------------------------------------------------------------------
 $pml = Join-Path $out "procmon-lifecal.pml"
-$etl = Join-Path $out "frames.etl"
-Section "Starting Process Monitor + packet trace"
+Section "Starting Process Monitor"
 Start-Process -FilePath $procmon -ArgumentList @('/AcceptEula', '/Quiet', '/Minimized', '/BackingFile', "`"$pml`"")
 
-$netshOK = $false
-try {
-  cmd /c "netsh trace start capture=yes report=no overwrite=yes maxSize=512 tracefile=`"$etl`"" 2>&1 |
-    Out-File -Encoding ascii (Join-Path $out "netsh-start.txt")
-  if ($LASTEXITCODE -eq 0) { $netshOK = $true }
-} catch { }
-if ($netshOK) {
-  Write-Host "    packet trace: ON (frames.etl - Brandon converts it to .pcapng)"
-} else {
-  Write-Host "    packet trace unavailable - Process Monitor + netstat still capture the key info." -ForegroundColor Yellow
+# Prefer Wireshark's dumpcap (reliable raw layer-2 via Npcap); fall back to the
+# built-in netsh trace if Wireshark/Npcap isn't installed.
+$dumpcap = @(
+  (Join-Path $env:ProgramFiles        'Wireshark\dumpcap.exe'),
+  (Join-Path ${env:ProgramFiles(x86)} 'Wireshark\dumpcap.exe')
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+$frameMode = 'none'
+$dumpProcs = @()
+
+if ($dumpcap) {
+  Section "Starting raw-frame capture (Wireshark dumpcap)"
+  # -D prints "N. \Device\NPF_{GUID} (name)". Capture EVERY interface to its own
+  # file - no fragile "pick the adapter" step; Brandon keeps the one with the
+  # ECU's raw frames (mirrors how the USB kit captures all buses).
+  $ifLines = @()
+  try { $ifLines = & $dumpcap -D 2>&1 } catch { }
+  ($ifLines | Out-String) | Out-File -Encoding ascii (Join-Path $out "dumpcap-interfaces.txt")
+  $frameDir = Join-Path $out "frames"
+  New-Item -ItemType Directory -Force -Path $frameDir | Out-Null
+  foreach ($line in $ifLines) {
+    $m = [regex]::Match([string]$line, '^\s*(\d+)\.')
+    if (-not $m.Success) { continue }
+    $num = $m.Groups[1].Value
+    $f = Join-Path $frameDir ("if$num.pcapng")
+    $p = Start-Process -FilePath $dumpcap -ArgumentList @('-i', $num, '-w', "`"$f`"") -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+    if ($p) { $dumpProcs += $p }
+  }
+  Start-Sleep -Milliseconds 900
+  $dumpProcs = @($dumpProcs | Where-Object { $_ -and -not $_.HasExited })
+  if ($dumpProcs.Count -gt 0) {
+    $frameMode = 'dumpcap'
+    Write-Host ("    raw-frame capture: ON (dumpcap, " + $dumpProcs.Count + " interface(s) -> .pcapng)")
+  } else {
+    Write-Host "    dumpcap started nothing (Npcap may be missing) - using the built-in trace instead." -ForegroundColor Yellow
+  }
+}
+
+if ($frameMode -eq 'none') {
+  $etl = Join-Path $out "frames.etl"
+  try {
+    cmd /c "netsh trace start capture=yes report=no overwrite=yes maxSize=512 tracefile=`"$etl`"" 2>&1 |
+      Out-File -Encoding ascii (Join-Path $out "netsh-start.txt")
+    if ($LASTEXITCODE -eq 0) { $frameMode = 'netsh' }
+  } catch { }
+  if ($frameMode -eq 'netsh') {
+    Write-Host "    raw-frame capture: ON (netsh trace -> frames.etl; Brandon converts to .pcapng)"
+  } else {
+    Write-Host "    raw-frame capture unavailable - Process Monitor + netstat still capture the key info." -ForegroundColor Yellow
+  }
 }
 Start-Sleep -Seconds 2
 
@@ -117,7 +157,10 @@ Read-Host "When the read AND write are done, press Enter here to STOP"
 # ---------------------------------------------------------------------------
 Section "Stopping"
 Start-Process -FilePath $procmon -ArgumentList @('/Terminate') -Wait
-if ($netshOK) {
+if ($frameMode -eq 'dumpcap') {
+  foreach ($p in $dumpProcs) { try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch { } }
+  Start-Sleep -Milliseconds 500
+} elseif ($frameMode -eq 'netsh') {
   Write-Host "    finishing the packet trace (this can take a minute)..."
   try { cmd /c "netsh trace stop" 2>&1 | Out-File -Encoding ascii (Join-Path $out "netsh-stop.txt") } catch { }
 }
@@ -136,8 +179,10 @@ marshal - Life Racing / LifeCal capture
 Contents:
   procmon-lifecal.pml            Process Monitor log of the LifeCal session
   netstat-before/during.txt      open sockets before and during the session
-  frames.etl                     raw packet trace (convert to .pcapng with
-                                 etl2pcapng, or open with the appropriate tool)
+  frames\if*.pcapng              raw frames, one file per network interface
+                                 (dumpcap) - keep the one with the ECU traffic;
+                                 OR frames.etl if Wireshark was not installed
+                                 (convert with etl2pcapng)
   protocol-server-*.txt          the LifeCal Protocol Server process/service/driver
   drivers.txt                    installed drivers (look for Rawether / LfNtSp)
 

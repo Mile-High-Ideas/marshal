@@ -14,8 +14,9 @@ to the ECU**. It will not work inside Parallels (that's the whole reason marshal
    does the wire I/O, and LifeCal talks to *that*. If that link is a **localhost socket**, marshal
    slots in cleanly; if it's **in-process / through the driver**, it's a harder road. This capture
    (Process Monitor + netstat) tells us which — the decisive unknown.
-2. **The raw frames** — a built-in Windows packet trace of the actual bytes, best effort, so the Mac
-   side can reproduce them.
+2. **The raw frames** — captured with **Wireshark's `dumpcap`** (already installed here from the SW4
+   USB test) for a reliable `.pcapng`, falling back to a built-in `netsh` trace if Wireshark isn't
+   found — so the Mac side can reproduce them.
 
 ## Do the capture (double-click)
 
