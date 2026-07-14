@@ -75,8 +75,29 @@ plan and the tools that get us there.
 
 ## Getting started
 
-If you have the hardware, the first useful thing is to identify how each device enumerates.
-On the Mac with the devices:
+### Try the daemon — no hardware needed
+
+The `mock` plugin is an in-memory echo "device", so you can run the whole daemon and watch the data
+path on your Mac with nothing plugged in:
+
+```sh
+make run CONFIG=marshald.mock.toml     # or just: make run
+```
+
+It creates `~/.marshald/run/loopback.sock`. In another terminal, connect and type — your bytes come
+straight back (Ctrl‑C to quit):
+
+```sh
+nc -U ~/.marshald/run/loopback.sock
+```
+
+That's the exact spine production uses. To go live you swap `type = "mock"` for `serial` (ECUMaster)
+or `aim-sw4` (the wheel), and the `nc` client for Parallels' virtual serial port that the guest app
+opens as `COMx` — nothing else about the flow changes.
+
+### Identify the hardware (on the Mac with the devices)
+
+If you have the hardware, identify how each device enumerates:
 
 ```sh
 cd tools/usb-discovery

@@ -12,7 +12,7 @@ Authoritative design: @docs/superpowers/specs/2026-07-13-marshal-design.md
 
 The core daemon exists: config → plugin registry → device plugins → `bridge.Pump` → one Unix socket per device → daemon lifecycle → `cmd/marshald`. Three plugins ship: `mock` (in-memory echo), `serial` (`/dev/cu.*` via `go.bug.st/serial`), and `aim` (AiM SW4 USB transfer relay). The **Life Racing (raw-L2) plugin is not written yet**; the **AiM SW4** plugin's device side (a libusb control/bulk relay) is built and replay-tested, but its guest-presentation forwarder is a separate open piece — see the design spec and `docs/protocols/aim-sw4-usb.md`.
 
-- Build/run/test go through the **root `Makefile`**: `make build`, `make test`, `make run CONFIG=...`, `make fmt`, `make vet`.
+- Build/run/test go through the **root `Makefile`**: `make build`, `make test`, `make run CONFIG=...`, `make fmt`, `make vet`. Bare `make run` uses the hardware-free `marshald.mock.toml` (mock echo device); connect with `nc -U ~/.marshald/run/loopback.sock`.
 - Test with the race detector: `go test ./... -race`. Every commit must be `gofmt`-clean and `go vet`-clean.
 - The `go.mod` `go` directive is **1.25** (a dependency requires it), not 1.23.
 - **The `aim` plugin's real libusb device is behind a `//go:build aim_usb` tag** (needs `gousb` → libusb + `pkg-config`). The default build, the full test suite, and the AiM replay test need none of that — only claiming real hardware requires `go build -tags aim_usb`.
