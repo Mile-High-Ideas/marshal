@@ -3,6 +3,7 @@
 **Status:** Design approved (2026-07-13)
 **Author:** Brandon Shutter (with Claude)
 **Language:** Go
+**Findings:** 2026-07-13 — ECUMaster confirmed USB‑CDC (§4.1); SW4 confirmed raw vendor USB, HID‑class, x64‑only driver (§4.3). Device IDs and open gates in‑section.
 
 ---
 
@@ -87,7 +88,7 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
 ## 4. Per‑device tactics
 
 ### 4.1 ECUMaster PMU16 — de‑risk first
-1. **Discovery (free, today, on the Mac):** read the cable's USB descriptor
+1. **Discovery (free, on Shane's Mac):** read the cable's USB descriptor
    (`system_profiler SPUSBDataType`). Branch:
    - **USB‑CDC** → guest gets inbox ARM64 COM port → **~zero bridge** (pass through or vSerial).
    - **FTDI (VID 0x0403)** → FTDI ARM64 driver in guest → **zero bridge**.
@@ -95,17 +96,24 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
      ARM64) only as last resort.
 2. Proves the "x64 app under emulation ↔ COM port" spine at minimal cost.
 
+> **Confirmed (2026‑07‑13, Shane's Mac):** device "ECUMASTER USB2CAN", **VID 0x0483 / PID 0x5740**
+> = STM32 Virtual COM Port (USB CDC‑ACM), enumerates as `/dev/cu.usbmodem*`. On Win11 ARM this
+> binds the **inbox `usbser.sys` (native ARM64) COM port — zero driver, zero bridge.** Remaining:
+> pass the USB device through Parallels, confirm `COMx` in the guest, point PMU Client at it.
+
 ### 4.2 Life Racing / LifeCal — raw layer‑2 bridge
 - Reimplement the **frame transport** as a `marshald` plugin that owns the USB‑Ethernet dongle
   via BPF and puts raw frames on the wire.
 - Redirect LifeCal's **app ↔ Protocol Server IPC** to the daemon.
 - **Decisive unknown:** is that IPC a redirectable localhost socket, or in‑process via the NDIS
-  driver? Resolve by capture on the friend's x64 PC (netstat/Process Monitor + the installer's
+  driver? Resolve by capture on Shane's standalone x64 PC (netstat/Process Monitor + the installer's
   Protocol Server binary). Raw frames themselves are fully visible in Wireshark.
 
 ### 4.3 AiM SW4 — hardest; discovery gates feasibility
-1. **Capture on friend's x64 Windows PC:** VID/PID, the `.inf`/`.sys`, and USB traffic (USBPcap)
-   during connect + config read/write.
+1. **Capture** VID/PID, the `.inf`/`.sys`, and USB traffic (USBPcap) during connect + config
+   read/write. Enumeration/driver‑model info comes from any Windows env (even the ARM guest); the
+   **protocol** USBPcap must come from a machine where RS3 actually connects — Shane's
+   **standalone x64 Windows PC**.
 2. **Branch:**
    - **COM/serial abstraction** (driver exposes a VCP) → same vSerial bridge as ECUMaster. *Best case.*
    - **Raw vendor USB** → `marshald` plugin replaying the RE'd protocol, presented to the guest
@@ -115,12 +123,36 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
    this is a long RE effort or a wall. **Fallback:** a cheap x64 Windows laptop for SW4 config
    only. Decision made after discovery, not before.
 
+> **Confirmed (2026‑07‑13, run inside Shane's Parallels Win11‑ARM guest):** SW4 = **VID 0x11CC
+> (AiM s.r.l.) / PID 0x0110**. AiM ships a **custom kernel‑mode function driver**
+> `AIM_USBdrv_11CC_0110_64a.sys` (inf `oem9.inf` / `aim_usbdrv_11cc_0110_64a.inf`), `Class=HIDClass`,
+> **x64‑only (`NTamd64`, no ARM64 variant)**, DriverVer 2013 v64.01, WHQL‑signed. In the ARM guest
+> the wheel **enumerates over USB passthrough as a HID node** but the driver won't start
+> (`CM_PROB_FAILED_START`) — first‑hand proof of the root cause in the real target environment, and
+> confirmation that **Parallels passes the SW4's USB through to the guest**.
+>
+> **Branch decision:** not a COM/VCP → this is **raw vendor USB, but the friendly HID‑class
+> variant.** Because the device is HID at the wire level, **macOS owns it in userspace via
+> IOHIDManager/hidapi — no kext, no libusb detach.** The Mac‑owns‑device half is effectively de‑risked.
+>
+> **Still open (the real gate):** RS3 was **not installed** on that guest, so there is no protocol
+> USBPcap yet. Need a read+write trace from Shane's **standalone x64 PC** to decide the guest
+> presentation: standard HID reports (simple bridge) vs AiM's custom device‑interface IOCTLs
+> (needs an ARM64 UMDF user‑mode driver or proxy).
+
 ## 5. Reverse‑engineering & lab strategy
 
-No new hardware. Captures run on the **friend's existing working x64 Windows PC**, remote‑first:
-Claude prepares capture scripts/instructions (USBPcap for AiM, Wireshark for Life Racing, Device
-Manager / Process Monitor for driver + IPC identification); friend runs them and returns logs.
-The ECUMaster USB descriptor is read locally on Brandon's Mac.
+No new hardware bought. **Brandon has no devices** — all hardware lives with **Shane**, who owns
+the full rig: an **Apple‑Silicon Mac running Parallels** (the real target environment) and a
+**standalone x64 Windows PC** where the vendor apps/drivers currently load. Shane **clones the repo
+and follows the kit instructions**, then returns logs; Brandon builds `marshald` from them.
+
+- **Mac‑side enumeration** (how a device talks to macOS): `tools/usb-discovery/` on Shane's Mac.
+- **Windows driver/enumeration** (VID/PID, `.inf`/`.sys`, failure code): `tools/aim-capture/` —
+  runs in any Windows env, including the Parallels ARM guest (that's where the 2026‑07‑13 AiM run
+  happened).
+- **Protocol capture** (USBPcap for AiM, Wireshark for Life Racing, Process Monitor for IPC): must
+  run where the app actually connects — Shane's **standalone x64 PC**.
 
 If remote capture proves too slow, revisit a dedicated x86 lab box (also usable as a
 VirtualHere/USB‑IP fallback sidecar).
@@ -139,12 +171,15 @@ VirtualHere/USB‑IP fallback sidecar).
 - No reimplementing vendor GUIs.
 - No native‑Mac apps (Approach C) unless a device clearly warrants it later.
 - No AiM Wi‑Fi path (SW4 has none).
-- No support for device paths the friend does not use.
+- No support for device paths Shane does not use.
 
 ## 9. Open questions (resolved during work, not blockers)
-- ECUMaster cable USB class (answerable today).
+- ~~ECUMaster cable USB class~~ — **RESOLVED (2026‑07‑13):** USB CDC‑ACM (VID 0x0483 / PID 0x5740),
+  free inbox ARM64 COM port. See §4.1.
 - LifeCal ↔ Protocol Server IPC mechanism + raw‑frame EtherType/format.
-- RS3 ↔ SW4: COM vs raw USB; driver `.inf`; protocol shape.
+- RS3 ↔ SW4: **partly RESOLVED (2026‑07‑13):** not COM — **raw vendor USB, HID‑class**; driver is
+  AiM's x64‑only `AIM_USBdrv_11CC_0110_64a.sys` (VID 0x11CC / PID 0x0110). **Still open:** protocol
+  shape + whether RS3 uses standard HID reports or AiM's custom IOCTLs (needs an x64 USBPcap). See §4.3.
 
 ## 10. Research appendix — sources
 - Windows‑on‑ARM kernel‑driver limitation: Microsoft Windows‑on‑ARM FAQ; Microsoft Q&A on x64 drivers on ARM.

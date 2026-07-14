@@ -51,9 +51,9 @@ marshal moves the device I/O to where a driver can run:
 
 | Device | Software | Link | Status |
 |---|---|---|---|
-| ECUMaster PMU16 | PMU Client | USB→CAN cable | 🔍 Discovery — likely a free ARM64 COM port |
+| ECUMaster PMU16 | PMU Client | USB→CAN cable | ✅ Confirmed USB‑CDC (VID 0x0483/PID 0x5740) — free ARM64 COM port, no bridge |
 | Life Racing ECU | LifeCal | Raw layer‑2 Ethernet | 📐 Designed — reimplement their protocol server on macOS |
-| AiM SW4 | RaceStudio 3 | Native USB | 📐 Designed — hardest; awaiting USB capture to choose the path |
+| AiM SW4 | RaceStudio 3 | Native USB | 🔍 Confirmed x64‑only HID kernel driver (VID 0x11CC/PID 0x0110) — HID‑class = free on macOS; awaiting RS3 protocol capture |
 
 Sequenced easiest → hardest so the shared plumbing is proven before the hard device.
 
@@ -88,6 +88,7 @@ See [`tools/usb-discovery/README.md`](tools/usb-discovery/README.md) for the wal
 ```text
 docs/superpowers/specs/   design specs
 tools/usb-discovery/       macOS hardware discovery kit (no build required)
+tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
 ```
 
 `marshald` and the device plugins will land here as implementation begins.
