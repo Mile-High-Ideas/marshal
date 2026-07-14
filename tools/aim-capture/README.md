@@ -13,8 +13,11 @@ connection to work** — even a failed attempt gives us the answer.
    the car with the ignition/accessory ON**, or on a **12V bench harness**, then plug its USB in.
    (No power? Still run it — we'll just get less.)
 3. In Windows, open the `aim-capture` folder and **double-click `Capture AiM SW4.bat`.**
-4. Windows pops up a **"Do you want to allow this app to make changes?"** box — **click "Yes."**
-   (That's just so it can read the full driver list.)
+4. Two popups may appear — both are normal:
+   - If you see **"Windows protected your PC"** (blue box), click **"More info"** → **"Run
+     anyway."**
+   - Then **"Do you want to allow this app to make changes?"** — **click "Yes."** (That's just
+     so it can read the full driver list.)
 5. A black window runs by itself and finishes with a message. It creates a file named
    **`marshal-aim-capture-<date>.zip`** in the folder.
 6. **Send that one `.zip` to Brandon** (drag into Messages, or attach to an email).
