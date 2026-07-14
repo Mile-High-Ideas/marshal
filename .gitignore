@@ -7,3 +7,9 @@ tools/usb-discovery/out/
 
 # macOS
 .DS_Store
+
+# subagent-driven-development scratch (briefs, reports, ledger, diffs)
+.superpowers/
+
+# compiled marshald binary
+/marshald
