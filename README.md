@@ -53,7 +53,7 @@ marshal moves the device I/O to where a driver can run:
 |---|---|---|---|
 | ECUMaster PMU16 | PMU Client | USB→CAN cable | ✅ Confirmed USB‑CDC (VID 0x0483/PID 0x5740) — free ARM64 COM port, no bridge |
 | Life Racing ECU | LifeCal | Raw layer‑2 Ethernet | 📐 Designed — reimplement their protocol server on macOS |
-| AiM SW4 | RaceStudio 3 | Native USB | 🔍 Confirmed x64‑only HID kernel driver (VID 0x11CC/PID 0x0110) — HID‑class = free on macOS; awaiting RS3 protocol capture |
+| AiM SW4 | RaceStudio 3 | Native USB | 🔬 Protocol decoded — vendor control (0x42) + bulk 0x01/0x82, ASCII/XML config; not HID. libusb-ownable on macOS; guest-presentation is the open piece |
 
 Sequenced easiest → hardest so the shared plumbing is proven before the hard device.
 

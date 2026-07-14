@@ -157,6 +157,26 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
 > under Program Files** on that box despite the driver being installed — Shane needs RS3 present +
 > a Wireshark/USBPcap read+write.
 
+> **PROTOCOL DECODED (2026‑07‑13, USBPcap of an RS3 read+write on the x64 box):** the open question
+> is answered — **RS3 does NOT use standard HID.** There is **zero** interrupt/HID‑report traffic.
+> The wheel is driven by:
+> - **Vendor control requests on EP0** — `bmRequestType 0x42` (vendor, host→device, recipient =
+>   endpoint), `bRequest 1` carrying a 64‑byte command block, `bRequest 2` as a trigger/select with
+>   `wIndex` (0..4). No `GET/SET_REPORT`.
+> - **Bulk OUT `0x01`** (host→wheel, config *write*) and **Bulk IN `0x82`** (wheel→host, config
+>   *read*), including multi‑KB and 63 KB transfers.
+>
+> **Payload is AiM's text/tag protocol, largely ASCII/XML** — very RE‑friendly. Writes are framed as
+> `<hSECTION<hexlen>a>\r\n` headers wrapping `<?xml version="1.0"?><Cfgs_table>…` and `key=value`
+> config, with named sections (`CfgT`, `CfgI`, `CHSF`, `LEDF`, `LDAL`, `DAL`, `PPMF`, `OVL1`,
+> `GMas`, …). Reads are binary records prefixed with ASCII `kkk`\x01 + an incrementing counter.
+>
+> **Consequences:** (1) macOS/`marshald` owns this trivially via **libusb** — vendor control + bulk,
+> no HID, no kext. (2) A "standard HID bridge" is **off the table**; the SW4 plugin replays these
+> exact transfers. (3) The **guest‑presentation** question stands, but is now concrete: forward
+> control(`0x42`/req1/req2) + bulk(`0x01`/`0x82`) to RS3, either via an ARM64 UMDF user‑mode driver
+> exposing AiM's device or a shim matching how RS3 opens the `.sys`.
+
 ## 5. Reverse‑engineering & lab strategy
 
 No new hardware bought. **Brandon has no devices** — all hardware lives with **Shane**, who owns
