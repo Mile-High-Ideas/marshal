@@ -140,6 +140,18 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
 > presentation: standard HID reports (simple bridge) vs AiM's custom device‑interface IOCTLs
 > (needs an ARM64 UMDF user‑mode driver or proxy).
 
+> **Confirmed (2026‑07‑13, second run on Shane's standalone x64 Win11 PC):** on real x64 the SW4
+> **works** — `Status OK`, `CM_PROB_NONE`, and AiM's kernel service **`AIM_USBdriver_0110` is
+> Running** (`AIM_USBdrv_11CC_0110_64a.sys`). This is the **working reference environment**, so a
+> USBPcap read/write trace is feasible here. New detail from the descriptor `CompatibleIds`: the
+> interface is **HID class 0x03, vendor subclass 0x06, protocol 0x50** — a vendor‑custom HID
+> interface. The driver inf (`oem53.inf`, byte‑identical to the guest's `oem9.inf`) registers **only
+> a kernel service — no device‑interface GUID** — so RS3 reaches the wheel via the HID collection
+> or a fixed device name the `.sys` creates, not a registered interface class. **Still missing:** the
+> actual USBPcap traffic (this run was the enumeration kit, no USB capture), and RS3 itself is **not
+> under Program Files** on that box despite the driver being installed — Shane needs RS3 present +
+> a Wireshark/USBPcap read+write.
+
 ## 5. Reverse‑engineering & lab strategy
 
 No new hardware bought. **Brandon has no devices** — all hardware lives with **Shane**, who owns
