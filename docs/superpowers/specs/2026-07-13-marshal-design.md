@@ -176,6 +176,11 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
 > exact transfers. (3) The **guest‑presentation** question stands, but is now concrete: forward
 > control(`0x42`/req1/req2) + bulk(`0x01`/`0x82`) to RS3, either via an ARM64 UMDF user‑mode driver
 > exposing AiM's device or a shim matching how RS3 opens the `.sys`.
+>
+> **Full transport model + framing:** [`docs/protocols/aim-sw4-usb.md`](../../protocols/aim-sw4-usb.md).
+> No public docs exist for this protocol (AiM "Open Systems" is CAN‑only; `.aimcfg` is proprietary) —
+> that doc + the capture are the spec. Key point: **the bridge is transport‑transparent** — forward
+> the transfers; `marshald` need not parse the payload.
 
 ## 5. Reverse‑engineering & lab strategy
 
