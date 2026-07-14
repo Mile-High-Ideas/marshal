@@ -1,0 +1,15 @@
+# Hardware-free demo config for marshald.
+#
+# The "mock" plugin is an in-memory echo "device" — it needs no hardware, so you
+# can run the whole daemon and watch the real data path (guest socket -> plugin
+# -> device -> back) on this Mac with nothing plugged in.
+#
+#   make run CONFIG=marshald.mock.toml
+#
+# Then connect to the socket it creates under ~/.marshald/run/ and anything you
+# send is echoed back — standing in for what a real device would return.
+
+[[device]]
+name   = "loopback"
+type   = "mock"
+socket = "loopback.sock"
