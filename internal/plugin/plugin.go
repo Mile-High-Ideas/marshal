@@ -17,6 +17,10 @@ const (
 	COMByteStream Presentation = iota
 	// RawFrameEndpoint is a raw layer-2 frame endpoint (future: Life Racing).
 	RawFrameEndpoint
+	// USBTransferEndpoint is a USB control/bulk transfer relay (AiM SW4): the
+	// guest sends framed transfer requests and receives framed responses,
+	// rather than a raw byte stream.
+	USBTransferEndpoint
 )
 
 // Plugin owns one physical device. Open/Close bracket the device lifetime

@@ -19,12 +19,21 @@ type Device struct {
 	Type   string        `toml:"type"`
 	Socket string        `toml:"socket"`
 	Serial *SerialConfig `toml:"serial"`
+	USB    *USBConfig    `toml:"usb"`
 }
 
 // SerialConfig holds serial-plugin parameters.
 type SerialConfig struct {
 	Port string `toml:"port"`
 	Baud int    `toml:"baud"`
+}
+
+// USBConfig overrides the USB vendor/product IDs for a USB-transfer plugin
+// (e.g. aim-sw4). Zero values mean "use the plugin default". TOML accepts hex
+// integer literals, e.g. vid = 0x11cc.
+type USBConfig struct {
+	VID int `toml:"vid"`
+	PID int `toml:"pid"`
 }
 
 // Load reads and validates a TOML config file.
