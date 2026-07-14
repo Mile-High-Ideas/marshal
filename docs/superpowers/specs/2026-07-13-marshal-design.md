@@ -98,8 +98,13 @@ vendor app (guest) → COMx → Parallels vSerial → host socket → marshald p
 
 > **Confirmed (2026‑07‑13, Shane's Mac):** device "ECUMASTER USB2CAN", **VID 0x0483 / PID 0x5740**
 > = STM32 Virtual COM Port (USB CDC‑ACM), enumerates as `/dev/cu.usbmodem*`. On Win11 ARM this
-> binds the **inbox `usbser.sys` (native ARM64) COM port — zero driver, zero bridge.** Remaining:
-> pass the USB device through Parallels, confirm `COMx` in the guest, point PMU Client at it.
+> binds the **inbox `usbser.sys` (native ARM64) COM port — zero driver, zero bridge.**
+>
+> **Guest‑side confirmed (2026‑07‑13, Shane's Parallels Win11‑ARM guest, `tools/ecumaster-check`):**
+> passed the cable through Parallels; it bound the **inbox `usbser` (native ARM64)** and presented
+> **COM3** — verdict **PASS**, no third‑party driver. The transport spine is proven at the plumbing
+> level: **no `marshald` needed for this device.** Only step left is the app‑level **PMU Client read
+> + write over COM3** (needs the PMU16 powered and wired to the cable's CAN1 side).
 
 ### 4.2 Life Racing / LifeCal — raw layer‑2 bridge
 - Reimplement the **frame transport** as a `marshald` plugin that owns the USB‑Ethernet dongle
