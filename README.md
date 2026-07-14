@@ -89,6 +89,7 @@ See [`tools/usb-discovery/README.md`](tools/usb-discovery/README.md) for the wal
 docs/superpowers/specs/   design specs
 tools/usb-discovery/       macOS hardware discovery kit (no build required)
 tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
+tools/ecumaster-check/     Windows kit — confirm the ECUMaster COM port in the guest
 ```
 
 `marshald` and the device plugins will land here as implementation begins.
