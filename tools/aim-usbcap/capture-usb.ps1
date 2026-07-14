@@ -8,9 +8,9 @@
 # RaceStudio 3 and the wheel during a config read/write, which is the one thing
 # left that decides how marshal bridges the SW4.
 #
-# Requires USBPcap (installed once via the Wireshark installer). This script
-# finds the USB bus the SW4 is on, captures to a .pcapng while you do the
-# read/write in RaceStudio 3, then zips it to your Desktop.
+# Requires USBPcap (installed once via the Wireshark installer). To avoid the
+# fragile "pick a bus" menu, this captures EVERY USB bus at once for the few
+# seconds of the read/write; Brandon filters to the wheel (VID 11CC) afterward.
 #
 # NOTE: this file is intentionally plain ASCII. Windows PowerShell 5.1 misreads
 # non-ASCII characters (em-dashes, smart quotes) and fails to parse. Keep it ASCII.
@@ -70,67 +70,44 @@ plug its USB into this laptop, then run this again.
 Write-Host ("    found: " + ($sw4 | Select-Object -First 1).FriendlyName)
 
 # ---------------------------------------------------------------------------
-# 3. List the USBPcap buses and find the one the SW4 is on
-#    USBPcapCMD with no args prints a tree of buses + devices, then waits for a
-#    selection. We feed it EOF, give it a moment to print, then read the output.
+# 3. Enumerate the USBPcap buses the reliable way (--extcap-interfaces prints
+#    machine-readable lines; the interactive tree menu does NOT survive output
+#    redirection, so we never use it). We capture every bus.
 # ---------------------------------------------------------------------------
-Section "Finding the SW4's USB bus"
-$listing = ""
+Section "Listing USBPcap buses"
+$ifaces = @()
 try {
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName               = $cmd
-  $psi.RedirectStandardInput  = $true
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError  = $true
-  $psi.UseShellExecute        = $false
-  $psi.CreateNoWindow         = $true
-  $p = [System.Diagnostics.Process]::Start($psi)
-  $p.StandardInput.Close()          # EOF so it stops waiting for a selection
-  Start-Sleep -Milliseconds 1200
-  if (-not $p.HasExited) { $p.Kill() }
-  $listing = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd()
-} catch {
-  $listing = ""
-}
-$listing | Out-File (Join-Path $out "usbpcap-buses.txt")
+  $raw = & $cmd --extcap-interfaces 2>&1 | Out-String
+  $raw | Out-File (Join-Path $out "usbpcap-interfaces.txt")
+  foreach ($m in [regex]::Matches($raw, 'value=([^}]+)')) { $ifaces += $m.Groups[1].Value.Trim() }
+} catch { }
+$ifaces = $ifaces | Where-Object { $_ -match 'USBPcap' } | Select-Object -Unique
 
-# Parse: track the current "N \\.\USBPcapN" header, flag the block that names AiM.
-$hub = $null
-$cur = $null
-foreach ($ln in ($listing -split "`r?`n")) {
-  if     ($ln -match '^\s*(\d+)\s+\\\\\.\\USBPcap\d+') { $cur = $matches[1] }
-  elseif ($cur -and ($ln -match 'AIM' -or $ln -match 'VID_11CC')) { $hub = $cur; break }
-}
-
-if ($hub) {
-  Write-Host ("    the SW4 looks like it is on bus " + $hub) -ForegroundColor Green
-  Write-Host ""
-  Write-Host "    Full bus list (saved to usbpcap-buses.txt):"
-  Write-Host $listing
-  $ans = Read-Host ("Press Enter to use bus " + $hub + ", or type a different bus number")
-  if ($ans.Trim() -ne '') { $hub = $ans.Trim() }
-} else {
-  Write-Host "    Could not auto-detect the bus. Here is the list:" -ForegroundColor Yellow
-  Write-Host $listing
-  $hub = (Read-Host "Type the number next to the bus that lists 'AIM USB Driver'").Trim()
-}
-
-if ($hub -notmatch '^\d+$') { Fail "That was not a bus number. Run the check again." }
-$ctrl = "\\.\USBPcap$hub"
-$pcap = Join-Path $out "sw4-$stamp.pcapng"
-
-# ---------------------------------------------------------------------------
-# 4. Start capturing, prompt for the RaceStudio 3 read/write, then stop
-# ---------------------------------------------------------------------------
-Section ("Capturing " + $ctrl + " -> " + $pcap)
-$proc = Start-Process -FilePath $cmd -ArgumentList @('-d', $ctrl, '-o', "`"$pcap`"") -PassThru -WindowStyle Hidden
-Start-Sleep -Milliseconds 800
-
-if ($proc.HasExited) {
+if (-not $ifaces -or $ifaces.Count -eq 0) {
   Fail @"
-The capture failed to start on $ctrl.
-Open usbpcap-buses.txt, note the correct bus number, and run this again.
-(USBPcap needs administrator rights - the .bat should have asked for them.)
+Could not list any USBPcap buses. USBPcap may not have installed correctly.
+Reinstall Wireshark with the USBPcap box CHECKED, reboot, then try again.
+"@
+}
+Write-Host ("    buses: " + ($ifaces -join ', '))
+
+# ---------------------------------------------------------------------------
+# 4. Start one capture per bus, prompt for the RaceStudio 3 read/write, stop all
+# ---------------------------------------------------------------------------
+Section "Starting capture on all buses"
+$procs = @()
+$n = 0
+foreach ($if in $ifaces) {
+  $n++
+  $f = Join-Path $out ("bus$n.pcapng")
+  $procs += Start-Process -FilePath $cmd -ArgumentList @('-d', $if, '-o', "`"$f`"") -PassThru -WindowStyle Hidden
+}
+Start-Sleep -Milliseconds 900
+if (-not ($procs | Where-Object { -not $_.HasExited })) {
+  Fail @"
+The captures did not start. USBPcap needs administrator rights - the .bat should
+have asked for them (the title bar should say "Administrator"). Close this and
+re-run "Capture SW4 Traffic.bat", clicking Yes on the popup.
 "@
 }
 
@@ -141,21 +118,21 @@ Write-Host "    1. Connect to the SW4."                                   -Foreg
 Write-Host "    2. Do a config READ."                                     -ForegroundColor Green
 Write-Host "    3. Do a small WRITE (change one setting, send it)."       -ForegroundColor Green
 Write-Host ""                                                             -ForegroundColor Green
-Write-Host "  Try not to type anything sensitive - this records the USB"  -ForegroundColor Green
-Write-Host "  bus the wheel is on for the next few seconds."              -ForegroundColor Green
+Write-Host "  This records ALL USB buses for these few seconds, so please" -ForegroundColor Green
+Write-Host "  do not type any passwords until you press Enter below."      -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
 Read-Host "When the read AND write are done, press Enter here to STOP"
 
 Section "Stopping capture"
-try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch { }
-Start-Sleep -Milliseconds 400
+foreach ($p in $procs) { try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch { } }
+Start-Sleep -Milliseconds 500
 
-$size = 0
-if (Test-Path $pcap) { $size = (Get-Item $pcap).Length }
-Write-Host ("    captured file: " + $pcap + "  (" + $size + " bytes)")
-if ($size -lt 200) {
-  Write-Host "    WARNING: the capture looks empty. Did the read/write happen on the right bus?" -ForegroundColor Yellow
+$total = 0
+Get-ChildItem (Join-Path $out "*.pcapng") -ErrorAction SilentlyContinue | ForEach-Object { $total += $_.Length }
+Write-Host ("    captured " + $total + " bytes across " + $ifaces.Count + " bus file(s)")
+if ($total -lt 500) {
+  Write-Host "    WARNING: the capture looks nearly empty - did the RS3 read/write actually run?" -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------------------------

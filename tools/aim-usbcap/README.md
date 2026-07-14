@@ -26,20 +26,19 @@ You only ever do this once.
    USB into the laptop.
 2. Open the `aim-usbcap` folder and **double-click `Capture SW4 Traffic.bat`.**
 3. Click **"Yes"** on the administrator popup (USBPcap needs it).
-4. The window finds the SW4's USB bus and shows it. **Press Enter** to accept it (or type the
-   number it points you to).
-5. It says **CAPTURING**. Now switch to **RaceStudio 3** and:
+4. It says **CAPTURING**. Now switch to **RaceStudio 3** and:
    - **Connect** to the SW4,
    - do a **read configuration**,
    - do a **small write** (change one setting and send it).
-6. Come back to the black window and **press Enter** to stop.
-7. It drops **`marshal-aim-usbcap-<date>.zip`** on your Desktop. **Send that one file to Brandon.**
+5. Come back to the black window and **press Enter** to stop.
+6. It drops **`marshal-aim-usbcap-<date>.zip`** on your Desktop. **Send that one file to Brandon.**
 
 ## Notes
 
 - The read **and** the write in one capture is ideal — the write is what proves the full round trip.
-- It records **only the one USB bus the wheel is on**, for the few seconds of the read/write. Try
-  not to type anything sensitive during that window.
-- If the window says the capture looks **empty**, the read/write likely happened on a different
-  bus — run it again and pick the bus the list flags as *AIM USB Driver*.
+- To keep it foolproof, it records **all** USB buses for the few seconds of the read/write (no bus
+  to pick), so **don't type any passwords** until you've pressed Enter to stop. Brandon keeps only
+  the wheel's packets.
+- If the window says the capture looks **nearly empty**, the RS3 read/write didn't actually run —
+  just double-click and do it again.
 - Nothing is uploaded anywhere; the `.zip` is a local file you choose to send.
