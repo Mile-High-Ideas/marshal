@@ -97,3 +97,34 @@ func TestTransportRefusesSecondGuest(t *testing.T) {
 		t.Fatalf("second guest: want EOF (refused), got %v", err)
 	}
 }
+
+func TestServeStopsOnContextCancel(t *testing.T) {
+	sock := shortSocket(t)
+	p, err := mock.New(config.Device{Name: "loop", Type: "mock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tr := New("loop", sock, p, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := tr.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { tr.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- tr.Serve(ctx) }()
+
+	// No Close() here: cancelling ctx alone must stop Serve and return nil.
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve returned %v, want nil on ctx cancel", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Serve did not return after ctx cancel")
+	}
+}

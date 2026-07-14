@@ -41,10 +41,19 @@ func (t *Transport) Start() error {
 	return nil
 }
 
-// Serve accepts guest connections. Exactly one guest is bridged at a time; a
-// second concurrent connection is refused (closed). Returns nil when the
-// listener is closed after ctx is done.
+// Serve accepts guest connections until ctx is cancelled or the listener is
+// closed. Exactly one guest is bridged at a time; a second concurrent
+// connection is refused (closed). Cancelling ctx stops Serve and returns nil.
 func (t *Transport) Serve(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Closing the listener is the only way to unblock Accept, so close it when
+	// ctx is cancelled — this lets a caller stop Serve with ctx alone. The
+	// derived ctx + defer cancel() guarantees this watcher exits when Serve does.
+	go func() {
+		<-ctx.Done()
+		_ = t.ln.Close()
+	}()
 	for {
 		conn, err := t.ln.Accept()
 		if err != nil {
