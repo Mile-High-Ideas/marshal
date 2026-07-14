@@ -59,11 +59,13 @@ Sequenced easiest → hardest so the shared plumbing is proven before the hard d
 
 ## Status
 
-**Pre‑implementation.** What exists today:
+**Core daemon built; device plugins in progress.** What exists today:
 
 - ✅ Full design spec — [`docs/superpowers/specs/2026-07-13-marshal-design.md`](docs/superpowers/specs/2026-07-13-marshal-design.md)
 - ✅ A hardware **discovery kit** you run on the Mac with the devices — [`tools/usb-discovery/`](tools/usb-discovery/)
-- ⏳ `marshald` itself — not built yet
+- ✅ **`marshald` core + serial bridge** — the daemon spine (config → plugin → bridge → per-device
+  Unix socket → lifecycle), with `mock` and `serial` plugins. Loopback- and PTY-tested; `go test ./... -race` green.
+- ⏳ The **Life Racing (raw-L2)** and **AiM SW4 (libusb)** device plugins — not written yet.
 
 No promises that any given device works until its row above says so. This README describes the
 plan and the tools that get us there.
@@ -86,14 +88,16 @@ See [`tools/usb-discovery/README.md`](tools/usb-discovery/README.md) for the wal
 ## Repository layout
 
 ```text
-docs/superpowers/specs/   design specs
+cmd/marshald/             the daemon entrypoint (Go)
+internal/                 daemon packages: config, plugin, bridge, transport, daemon, plugins/{mock,serial}
+docs/superpowers/         design specs and implementation plans
 tools/usb-discovery/       macOS hardware discovery kit (no build required)
 tools/aim-capture/         Windows kit — SW4 driver/USB capture (runs in the guest or a real PC)
 tools/ecumaster-check/     Windows kit — confirm the ECUMaster COM port in the guest
 tools/aim-usbcap/          Windows kit — record RS3<->SW4 USB traffic (USBPcap, x64 PC)
 ```
 
-`marshald` and the device plugins will land here as implementation begins.
+The remaining device plugins (Life Racing raw-L2, AiM SW4 libusb) land under `internal/plugins/`.
 
 ## Non‑goals
 
